@@ -37,46 +37,130 @@ const convertToDoApplicationDbObjectToResponseObject = (dbObject) => {
   };
 };
 
+const hasPriorityAndStatusProperties = (requestQuery) => {
+ return (
+  requestQuery.priority !== undefined && requestQuery.status !== undefined
+ );
+};
 
-app.get("/todos/?status=TO%20DO", async (request, response) =>{
-    const { status } = request.query;
-    const getToDoQuery = `
-    SELECT
-      *
-    FROM
-     todo
-    WHERE
-     status LIKE '%${status}%'
-})`
-const toDoArray = await db.all(getToDoQuery);
-  response.send(toDoArray);
+const hasPriorityProperty = (requestQuery) => {
+ return requestQuery.priority !== undefined;
+};
+
+const hasStatusProperty = (requestQuery) => {
+ return requestQuery.status !== undefined;
+};
+
+app.get("/todos/", async (request, response) => {
+ let data = null;
+ let getTodosQuery = "";
+ const { search_q = "", priority, status } = request.query;
+
+
+ switch (true) {
+  case hasPriorityAndStatusProperties(request.query): //if this is true then below query is taken in the code
+   getTodosQuery = `
+   SELECT
+    *
+   FROM
+    todo 
+   WHERE
+    todo LIKE '%${search_q}%'
+    AND status = '${status}'
+    AND priority = '${priority}';`;
+   break;
+  case hasPriorityProperty(request.query):
+   getTodosQuery = `
+   SELECT
+    *
+   FROM
+    todo 
+   WHERE
+    todo LIKE '%${search_q}%'
+    AND priority = '${priority}';`;
+   break;
+  case hasStatusProperty(request.query):
+   getTodosQuery = `
+   SELECT
+    *
+   FROM
+    todo 
+   WHERE
+    todo LIKE '%${search_q}%'
+    AND status = '${status}';`;
+   break;
+  default:
+   getTodosQuery = `
+   SELECT
+    *
+   FROM
+    todo 
+   WHERE
+    todo LIKE '%${search_q}%';`;
+ }
+
+data = await database.all(getTodosQuery);
+ response.send(data);
 });
 
-app.get("/todos/:todoId/", async (request, response) =>{
-    const { todoId } = request.params;
-    const getToDosQuery = `
-    SELECT
-      *
-    FROM
-     todo
-    WHERE
-    id = ${todoId};
-
-    
-})`
-const getArray = await db.get(getToDosQuery);
-  response.send(convertToDoApplicationDbObjectToResponseObject(getArray));
-});
 
 app.post("/todos/", async (request, response) => {
   const { id, toDo, priority, status } = request.body;
   const postToDoQuery = `
   INSERT INTO
-    movie ( id, todo, priority, status )
+    todo ( id, todo, priority, status )
   VALUES
     (${id}, '${toDo}', '${priority}', '${status}' );`;
   await database.run(postToDoQuery);
   response.send("Todo Successfully Added");
 });
 
+
+app.put("/todos/:todoId/", async (request, response) =>{
+
+    const { todoId } = request.params; 
+    let updatedColumn = "";
+    const requestBody = request.body;
+    switch (true){
+        case requestBody.status !== undefined:
+            updatedColumn = "Status";
+            break;
+        case requestBody.priority !== undefined:
+            updatedColumn = "Priority";
+            break
+        case requestBody.status !== undefined:
+            updatedColumn = "Status";
+            break    
+}
+    const previousToDoQuery = `
+        SELECT 
+            *
+        FROM 
+            todo
+        WHERE 
+            id = '${todoId};
+`;
+    const previousToDo = await database.get(previousToDoQuery)
+
+    const {
+        todo = previousTodo.todo,
+        status = previousTodo.status,
+        priority = previousTodo.priority,
+    }  = request.body;
+
+    const updatedToDoQuery = `
+        UPDATE 
+            todo
+        SET
+            todo = '${todo}',
+            priority = '${priority}',
+            status = '${status}'
+         WHERE 
+            id = ${todoId}
+    `
+    await database.run(updatedToDoQuery)
+    response.send(`${updatedColumn} Updated`)
+
+});
 module.exports = app;
+
